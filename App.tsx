@@ -2,6 +2,22 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import { BCPS, LANES, HS_RISK, ORIGIN_RISK } from "./constants";
 import { Vehicle, RiskLevel, Lane, ControlType, Declaration, DeclarationStatus, VehicleStatus, VehicleType, Alert, BiometricDetail } from "./types";
 import { randomItem, riskBadgeColor, generateVehicle, generateDeclaration, validateDeclaration, calculateCustomsRisk, generateBioDetail } from "./utils";
+import { initializeApp, getApps, FirebaseApp } from "firebase/app";
+import { getAuth, signInWithPhoneNumber, RecaptchaVerifier, ConfirmationResult, Auth } from "firebase/auth";
+
+// ── Firebase Phone Auth (configured via VITE_FIREBASE_* env vars) ─────────────
+const _fbCfg = {
+  apiKey:     import.meta.env.VITE_FIREBASE_API_KEY     as string | undefined,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string | undefined,
+  projectId:  import.meta.env.VITE_FIREBASE_PROJECT_ID  as string | undefined,
+};
+const _fbReady = Boolean(_fbCfg.apiKey && _fbCfg.authDomain && _fbCfg.projectId);
+let _fbApp: FirebaseApp | null = null;
+let _fbAuth: Auth | null = null;
+if (_fbReady) {
+  _fbApp  = getApps().length ? getApps()[0] : initializeApp(_fbCfg as any);
+  _fbAuth = getAuth(_fbApp);
+}
 
 // ─── Layer Architecture ───────────────────────────────────────────────────────
 type LayerType = 'governance' | 'workflow' | 'kpi' | 'interop' | 'ai-risk' | 'decision' | 'ops-info' | 'mission' | 'cooperation';
@@ -5349,6 +5365,15 @@ const LoginScreen = React.memo(function LoginScreen({ onLogin, lang, onLangChang
   const [pendingOfficer, setPendingOfficer] = useState<LoggedOfficer | null>(null);
   const [demoCode,  setDemoCode]  = useState('');
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const recaptchaRef    = useRef<RecaptchaVerifier | null>(null);
+  const confirmationRef = useRef<ConfirmationResult | null>(null);
+
+  // Initialise invisible reCAPTCHA once Firebase is configured
+  useEffect(() => {
+    if (!_fbAuth) return;
+    recaptchaRef.current = new RecaptchaVerifier(_fbAuth, 'recaptcha-container', { size: 'invisible' });
+    return () => { recaptchaRef.current?.clear(); recaptchaRef.current = null; };
+  }, []);
 
   // ── Shared UI state ──────────────────────────────────────────────────────────
   const [error,    setError]   = useState('');
@@ -5407,17 +5432,21 @@ const LoginScreen = React.memo(function LoginScreen({ onLogin, lang, onLangChang
     const normPhone = normalisePhone(phone);
     const officer = { name, surname, badge, institution, rank };
     setLoading(true); setError('');
-    try {
-      const res = await fetch('/api/send-otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: normPhone }) });
-      const ct = res.headers.get('content-type') ?? '';
-      if (!ct.includes('application/json')) { activateDemoMode(normPhone, officer); return; }
-      if (!res.ok) throw new Error((await res.json()).error);
-      setIsDemoMode(false); setDemoCode('');
-      setPendingOfficer(officer); setSentPhone(normPhone);
-      setCountdown(300); setResendLeft(60); setStep('otp');
-    } catch {
-      activateDemoMode(normPhone, officer);
-    } finally { setLoading(false); }
+    // ── Firebase path (real SMS to any number) ───────────────────────────────────
+    if (_fbAuth && recaptchaRef.current) {
+      try {
+        confirmationRef.current = await signInWithPhoneNumber(_fbAuth, normPhone, recaptchaRef.current);
+        setIsDemoMode(false); setDemoCode('');
+        setPendingOfficer(officer); setSentPhone(normPhone);
+        setCountdown(300); setResendLeft(60); setStep('otp');
+      } catch (err: any) {
+        setError({ EN: `Could not send SMS: ${err.message ?? 'try again'}.`, RO: `Eroare SMS: ${err.message ?? 'reîncercați'}.`, FR: `Erreur SMS: ${err.message ?? 'réessayez'}.`, RU: `Ошибка SMS: ${err.message ?? 'попробуйте снова'}.` }[lang]);
+      } finally { setLoading(false); }
+      return;
+    }
+    // ── Demo fallback (Firebase not yet configured) ───────────────────────────────
+    activateDemoMode(normPhone, officer);
+    setLoading(false);
   };
 
   const verifyOtp = async () => {
@@ -5427,10 +5456,10 @@ const LoginScreen = React.memo(function LoginScreen({ onLogin, lang, onLangChang
       if (code !== demoCode) { setError({ EN: 'Invalid code. Check the code shown below.', RO: 'Cod invalid. Verificați codul afișat mai jos.', FR: 'Code invalide. Vérifiez le code affiché ci-dessous.', RU: 'Неверный код. Проверьте код ниже.' }[lang]); return; }
       onLogin(pendingOfficer!); return;
     }
+    if (!confirmationRef.current) { setError('Session expired — go back and resend.'); return; }
     setLoading(true); setError('');
     try {
-      const res = await fetch('/api/verify-otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: sentPhone, code }) });
-      if (!res.ok) throw new Error((await res.json()).error);
+      await confirmationRef.current.confirm(code);
       onLogin(pendingOfficer!);
     } catch {
       setError({ EN: 'Invalid code. Check your SMS and try again.', RO: 'Cod invalid. Verificați SMS-ul și reîncercați.', FR: 'Code invalide. Vérifiez votre SMS et réessayez.', RU: 'Неверный код. Проверьте SMS и повторите попытку.' }[lang]);
@@ -5445,15 +5474,14 @@ const LoginScreen = React.memo(function LoginScreen({ onLogin, lang, onLangChang
       if (otpRef.current) otpRef.current.value = '';
       return;
     }
-    setLoading(true); setError('');
-    try {
-      const res = await fetch('/api/send-otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: sentPhone }) });
-      if (!res.ok) throw new Error();
-      setCountdown(300); setResendLeft(60);
-      if (otpRef.current) otpRef.current.value = '';
-    } catch {
-      setError({ EN: 'Could not resend. Try again.', RO: 'Nu s-a putut retrimite. Reîncercați.', FR: 'Échec de renvoi. Réessayez.', RU: 'Не удалось отправить повторно.' }[lang]);
-    } finally { setLoading(false); }
+    if (_fbAuth && recaptchaRef.current) {
+      setLoading(true);
+      try {
+        confirmationRef.current = await signInWithPhoneNumber(_fbAuth, sentPhone, recaptchaRef.current);
+        setCountdown(300); setResendLeft(60);
+        if (otpRef.current) otpRef.current.value = '';
+      } catch { /* silent */ } finally { setLoading(false); }
+    }
   };
 
   const inputCls = 'w-full bg-[#0D1219] border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/20 placeholder-slate-700';
@@ -5462,6 +5490,8 @@ const LoginScreen = React.memo(function LoginScreen({ onLogin, lang, onLangChang
   return (
     /* Outer: fixed full-screen, scrollable so the card is always reachable on short viewports */
     <div className="fixed inset-0 z-50 overflow-y-auto bg-[#06080F]">
+      {/* Invisible reCAPTCHA container required by Firebase Phone Auth */}
+      <div id="recaptcha-container" />
       {/* Subtle grid background — pointer-events-none so it never intercepts clicks */}
       <div className="fixed inset-0 opacity-[0.025] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#334155 1px,transparent 1px),linear-gradient(90deg,#334155 1px,transparent 1px)', backgroundSize: '40px 40px' }} />
       {/* Centering wrapper — min-h-full + py-8 keeps card centered on tall screens, scrollable on short ones */}
