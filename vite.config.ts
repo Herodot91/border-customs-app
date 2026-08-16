@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
-      base: mode === 'production' ? '/border-customs-app/' : '/',
+      base: process.env.VERCEL ? '/' : (mode === 'production' ? '/border-customs-app/' : '/'),
       server: {
         port: 3000,
         host: '0.0.0.0',
