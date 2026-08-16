@@ -5382,9 +5382,9 @@ const LoginScreen = React.memo(function LoginScreen({ onLogin, lang, onLangChang
     onLogin({ name, surname, badge, institution, rank });
   };
 
-  // ── Phone validation: Romanian mobile (+407XXXXXXXX) ─────────────────────────
+  // ── Phone validation: Romanian (+407XXXXXXXX) or Moldovan (+373XXXXXXXX) ─────
   const normalisePhone = (p: string) => { const s = p.replace(/\s/g,''); return s.startsWith('+') ? s : `+${s}`; };
-  const isValidRoPhone = (p: string) => /^\+407\d{8}$/.test(normalisePhone(p));
+  const isValidPhone = (p: string) => /^\+407\d{8}$|^\+373\d{8}$/.test(normalisePhone(p));
 
   // ── Generate 6-digit OTP locally ─────────────────────────────────────────────
   const generateOtp = () => String(Math.floor(100000 + Math.random() * 900000));
@@ -5396,8 +5396,8 @@ const LoginScreen = React.memo(function LoginScreen({ onLogin, lang, onLangChang
     const badge   = badgeRef.current?.value.trim()   ?? '';
     const phone   = phoneRef.current?.value.trim()   ?? '';
     if (!name || !surname || !badge || !rank || !phone) { setError(L.error); return; }
-    if (!isValidRoPhone(phone)) {
-      setError({ EN: 'Enter a valid Romanian mobile number (+407XXXXXXXX).', RO: 'Introduceți un număr mobil român valid (+407XXXXXXXX).', FR: 'Entrez un numéro mobile roumain valide (+407XXXXXXXX).', RU: 'Введите действительный румынский мобильный номер (+407XXXXXXXX).' }[lang]);
+    if (!isValidPhone(phone)) {
+      setError({ EN: 'Enter a valid Romanian (+407XXXXXXXX) or Moldovan (+373XXXXXXXX) mobile number.', RO: 'Introduceți un număr mobil român (+407XXXXXXXX) sau moldovean (+373XXXXXXXX) valid.', FR: 'Entrez un numéro mobile roumain (+407XXXXXXXX) ou moldave (+373XXXXXXXX) valide.', RU: 'Введите действительный румынский (+407XXXXXXXX) или молдавский (+373XXXXXXXX) мобильный номер.' }[lang]);
       return;
     }
     const code = generateOtp();
@@ -5551,7 +5551,7 @@ const LoginScreen = React.memo(function LoginScreen({ onLogin, lang, onLangChang
             <label className={labelCls}>{L.phone}</label>
             <input ref={phoneRef} type="tel" defaultValue="+373"
               onKeyDown={e => e.key === 'Enter' && sendOtp()}
-              className={`${inputCls} font-mono`} placeholder="+373 XXXXXXXX" autoComplete="tel" />
+              className={`${inputCls} font-mono`} placeholder="+373XXXXXXXX / +407XXXXXXXX" autoComplete="tel" />
           </div>
           )}
           {/* Password — only for the direct-password tab */}
