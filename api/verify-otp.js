@@ -1,4 +1,4 @@
-import twilio from 'twilio';
+import { generateCode } from './otp-util.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
@@ -6,19 +6,14 @@ export default async function handler(req, res) {
   const { phone, code } = req.body ?? {};
   if (!phone || !code) return res.status(400).json({ error: 'Phone and code required' });
 
-  const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+  // Accept current slot or the previous one (handles boundary edge cases)
+  const valid =
+    code === generateCode(phone, process.env.OTP_SECRET, 0) ||
+    code === generateCode(phone, process.env.OTP_SECRET, -1);
 
-  try {
-    const check = await client.verify.v2
-      .services(process.env.TWILIO_VERIFY_SID)
-      .verificationChecks.create({ to: phone, code });
-
-    if (check.status === 'approved') {
-      res.json({ ok: true });
-    } else {
-      res.status(400).json({ error: 'Invalid code' });
-    }
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  if (valid) {
+    res.json({ ok: true });
+  } else {
+    res.status(400).json({ error: 'Invalid or expired code' });
   }
 }
