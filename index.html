@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BP·CS Joint Operational Console</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      /* Custom scrollbar for dark theme */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #0f172a;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #334155;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #475569;
+      }
+      /* Pipeline particle animation */
+      @keyframes pipelineFlow {
+        0%   { left: -6px;            opacity: 0; }
+        12%  {                         opacity: 1; }
+        88%  {                         opacity: 1; }
+        100% { left: calc(100% + 6px); opacity: 0; }
+      }
+      .pipeline-dot {
+        position: absolute;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        top: 50%;
+        transform: translateY(-50%);
+        animation: pipelineFlow 2.2s ease-in-out infinite;
+        pointer-events: none;
+      }
+      /* Reverse pipeline particle (Officers → Dashboard) */
+      @keyframes pipelineFlowRev {
+        0%   { left: calc(100% + 6px); opacity: 0; }
+        12%  { opacity: 1; }
+        88%  { opacity: 1; }
+        100% { left: -6px; opacity: 0; }
+      }
+      .pipeline-dot-rev {
+        position: absolute;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        top: 50%;
+        transform: translateY(-50%);
+        animation: pipelineFlowRev 2.2s ease-in-out infinite;
+        pointer-events: none;
+      }
+      /* Hide scrollbar utility */
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+  </head>
+  <body class="bg-slate-950 text-slate-200">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
