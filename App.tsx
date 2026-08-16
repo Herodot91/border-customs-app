@@ -5347,6 +5347,7 @@ const LoginScreen = React.memo(function LoginScreen({ onLogin, lang, onLangChang
   const [step,      setStep]     = useState<Step>('form');
   const [sentPhone, setSentPhone] = useState('');   // phone displayed in step 2
   const [pendingOfficer, setPendingOfficer] = useState<LoggedOfficer | null>(null);
+  const [demoCode,  setDemoCode]  = useState('');   // client-side generated OTP
 
   // ── Shared UI state ──────────────────────────────────────────────────────────
   const [error,    setError]   = useState('');
@@ -5381,74 +5382,51 @@ const LoginScreen = React.memo(function LoginScreen({ onLogin, lang, onLangChang
     onLogin({ name, surname, badge, institution, rank });
   };
 
-  // ── Step 1: validate form + send OTP (no password needed — SMS code is the auth) ──
-  const sendOtp = async () => {
+  // ── Phone validation: Romanian mobile (+407XXXXXXXX) ─────────────────────────
+  const normalisePhone = (p: string) => { const s = p.replace(/\s/g,''); return s.startsWith('+') ? s : `+${s}`; };
+  const isValidRoPhone = (p: string) => /^\+407\d{8}$/.test(normalisePhone(p));
+
+  // ── Generate 6-digit OTP locally ─────────────────────────────────────────────
+  const generateOtp = () => String(Math.floor(100000 + Math.random() * 900000));
+
+  // ── Step 1: validate form + generate OTP locally ─────────────────────────────
+  const sendOtp = () => {
     const name    = nameRef.current?.value.trim()    ?? '';
     const surname = surnameRef.current?.value.trim() ?? '';
     const badge   = badgeRef.current?.value.trim()   ?? '';
     const phone   = phoneRef.current?.value.trim()   ?? '';
     if (!name || !surname || !badge || !rank || !phone) { setError(L.error); return; }
-    setError(''); setLoading(true);
-    try {
-      const res = await fetch('/api/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error ?? 'Failed to send code.'); return; }
-      setPendingOfficer({ name, surname, badge, institution, rank });
-      setSentPhone(phone);
-      setCountdown(300);
-      setResendLeft(60);
-      setStep('otp');
-    } catch {
-      setError('Cannot reach OTP server. Is it running?');
-    } finally {
-      setLoading(false);
+    if (!isValidRoPhone(phone)) {
+      setError({ EN: 'Enter a valid Romanian mobile number (+407XXXXXXXX).', RO: 'Introduceți un număr mobil român valid (+407XXXXXXXX).', FR: 'Entrez un numéro mobile roumain valide (+407XXXXXXXX).', RU: 'Введите действительный румынский мобильный номер (+407XXXXXXXX).' }[lang]);
+      return;
     }
+    const code = generateOtp();
+    setDemoCode(code);
+    setPendingOfficer({ name, surname, badge, institution, rank });
+    setSentPhone(normalisePhone(phone));
+    setCountdown(300);
+    setResendLeft(60);
+    setStep('otp');
+    setError('');
   };
 
-  // ── Step 2: verify OTP ────────────────────────────────────────────────────────
-  const verifyOtp = async () => {
+  // ── Step 2: verify OTP locally ───────────────────────────────────────────────
+  const verifyOtp = () => {
     const code = otpRef.current?.value.trim() ?? '';
     if (code.length !== 6) { setError('Enter the 6-digit code.'); return; }
-    setError(''); setLoading(true);
-    try {
-      const res = await fetch('/api/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: sentPhone, code }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error ?? 'Invalid code.'); return; }
-      onLogin(pendingOfficer!);
-    } catch {
-      setError('Cannot reach OTP server. Is it running?');
-    } finally {
-      setLoading(false);
-    }
+    if (code !== demoCode) { setError({ EN: 'Invalid code. Check the code displayed below and try again.', RO: 'Cod invalid. Verificați codul afișat mai jos și reîncercați.', FR: 'Code invalide. Vérifiez le code affiché ci-dessous.', RU: 'Неверный код. Проверьте код ниже и повторите попытку.' }[lang]); return; }
+    onLogin(pendingOfficer!);
   };
 
   // ── Resend OTP ────────────────────────────────────────────────────────────────
-  const resendOtp = async () => {
+  const resendOtp = () => {
     if (resendLeft > 0) return;
-    setError(''); setLoading(true);
-    try {
-      const res = await fetch('/api/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: sentPhone }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error ?? 'Failed to resend.'); return; }
-      setCountdown(300); setResendLeft(60);
-      if (otpRef.current) otpRef.current.value = '';
-    } catch {
-      setError('Cannot reach OTP server.');
-    } finally {
-      setLoading(false);
-    }
+    const code = generateOtp();
+    setDemoCode(code);
+    setCountdown(300);
+    setResendLeft(60);
+    if (otpRef.current) otpRef.current.value = '';
+    setError('');
   };
 
   const inputCls = 'w-full bg-[#0D1219] border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/20 placeholder-slate-700';
@@ -5628,6 +5606,29 @@ const LoginScreen = React.memo(function LoginScreen({ onLogin, lang, onLangChang
               <div className="text-sm font-bold text-emerald-300 font-mono">{sentPhone}</div>
             </div>
           </div>
+          {/* Demo SMS preview panel */}
+          {demoCode && (
+            <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 overflow-hidden">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/60 border-b border-slate-700/40">
+                <div className="flex gap-1">
+                  <div className="w-2.5 h-2.5 rounded-full bg-red-500/70" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-amber-500/70" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/70" />
+                </div>
+                <span className="text-[8px] text-slate-500 font-mono mx-auto">Messages — BP·CS Console</span>
+              </div>
+              <div className="p-3">
+                <div className="flex justify-end">
+                  <div className="max-w-[80%] rounded-2xl rounded-tr-sm bg-blue-600/80 px-3 py-2 text-[11px] text-white leading-relaxed">
+                    BP·CS Joint Console — access code: <span className="font-black font-mono tracking-widest text-amber-300">{demoCode}</span>. Valid 5 min. Do not share.
+                  </div>
+                </div>
+                <div className="text-[8px] text-slate-600 text-right mt-1">
+                  {{ EN: 'Demo mode — code shown for presentation', RO: 'Mod demo — codul este afișat pentru prezentare', FR: 'Mode démo — code affiché pour la présentation', RU: 'Демо-режим — код показан для презентации' }[lang]}
+                </div>
+              </div>
+            </div>
+          )}
           {/* Countdown */}
           <div className="flex items-center justify-between text-[10px]">
             <span className="text-slate-500 uppercase tracking-wider">{L.otpExpires}</span>
