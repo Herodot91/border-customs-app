@@ -5482,14 +5482,14 @@ const LoginScreen = React.memo(function LoginScreen({ onLogin, lang, onLangChang
           {/* Both institution emblems */}
           <div className="flex items-end justify-center gap-6 mb-4">
             <div className="flex flex-col items-center gap-1">
-              <img src="/logo-border-police.png" alt="Poliția de Frontieră"
+              <img src={`${import.meta.env.BASE_URL}logo-border-police.png`} alt="Poliția de Frontieră"
                 className="h-16 w-auto object-contain drop-shadow-lg" />
               <span className="text-[8px] font-bold text-blue-400/80 leading-none">Poliția de Frontieră</span>
               <span className="text-[7px] text-slate-600 leading-none">a Republicii Moldova</span>
             </div>
             <div className="w-px h-12 bg-slate-700/40 shrink-0 mb-3" />
             <div className="flex flex-col items-center gap-1">
-              <img src="/logo-customs-service.png" alt="Serviciul Vamal"
+              <img src={`${import.meta.env.BASE_URL}logo-customs-service.png`} alt="Serviciul Vamal"
                 className="h-16 w-auto object-contain drop-shadow-lg" />
               <span className="text-[8px] font-bold text-orange-400/80 leading-none">Serviciul Vamal</span>
               <span className="text-[7px] text-slate-600 leading-none">al Republicii Moldova</span>
@@ -5623,25 +5623,48 @@ const LoginScreen = React.memo(function LoginScreen({ onLogin, lang, onLangChang
         {/* ── STEP 2: OTP verification ─────────────────────────────────────── */}
         {step === 'otp' && (
         <div className="px-8 py-6 space-y-5">
-          {/* Sent-to notice */}
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-950/40 border border-emerald-800/50">
-            <svg className="w-5 h-5 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 8.25h3m-3 3h1.5" />
-            </svg>
-            <div>
-              <div className="text-[9px] font-bold uppercase tracking-widest text-emerald-500">{L.otpSentTo}</div>
-              <div className="text-sm font-bold text-emerald-300 font-mono">{sentPhone}</div>
-            </div>
-          </div>
-          {/* Demo code panel — only shown when no real SMS backend is available */}
-          {isDemoMode && demoCode && (
-            <div className="rounded-xl border border-amber-700/40 bg-amber-950/20 overflow-hidden">
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-900/20 border-b border-amber-800/30">
-                <span className="text-[8px] font-bold text-amber-600 uppercase tracking-widest">Demo — Cod afișat pe ecran</span>
+          {/* Mode banner */}
+          {isDemoMode ? (
+            <div className="rounded-xl border border-amber-600/40 bg-amber-950/30 overflow-hidden">
+              {/* header */}
+              <div className="flex items-center justify-between px-4 py-2 bg-amber-900/30 border-b border-amber-700/30">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span className="text-[9px] font-black uppercase tracking-widest text-amber-400">
+                    {{ EN: 'Demo Mode — No SMS sent', RO: 'Mod Demo — SMS netrimis', FR: 'Mode Démo — SMS non envoyé', RU: 'Демо-режим — SMS не отправлен' }[lang]}
+                  </span>
+                </div>
+                <span className="text-[8px] text-amber-700 font-mono">{sentPhone}</span>
               </div>
-              <div className="p-3 text-center">
-                <div className="font-mono text-3xl font-black tracking-[0.4em] text-amber-300 py-1">{demoCode}</div>
-                <div className="text-[8px] text-slate-600 mt-1">Introduceți codul de mai sus în câmpul de mai jos</div>
+              {/* SMS bubble */}
+              <div className="px-4 py-3 space-y-2">
+                <div className="text-[8px] text-slate-600 uppercase tracking-wider mb-1">
+                  {{ EN: 'Simulated SMS message:', RO: 'Mesaj SMS simulat:', FR: 'Message SMS simulé :', RU: 'Смоделированное SMS:' }[lang]}
+                </div>
+                <div className="flex justify-start">
+                  <div className="max-w-[90%] rounded-2xl rounded-tl-sm bg-slate-700/60 border border-slate-600/40 px-4 py-3">
+                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                      {{ EN: 'BP·CS Joint Console — your access code is:', RO: 'BP·CS Console — codul dvs. de acces este:', FR: 'BP·CS Console — votre code d\'accès est :', RU: 'BP·CS Консоль — ваш код доступа:' }[lang]}
+                    </p>
+                    <p className="font-mono text-3xl font-black tracking-[0.35em] text-amber-300 mt-1 text-center">{demoCode}</p>
+                    <p className="text-[9px] text-slate-500 mt-1">
+                      {{ EN: 'Valid 5 min. Do not share.', RO: 'Valabil 5 min. Nu distribuiți.', FR: 'Valable 5 min. Ne pas partager.', RU: 'Действителен 5 мин. Не сообщайте никому.' }[lang]}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-[8px] text-slate-600 text-center pt-1">
+                  {{ EN: 'Enter the code above into the field below', RO: 'Introduceți codul de mai sus în câmpul de mai jos', FR: 'Saisissez le code ci-dessus dans le champ ci-dessous', RU: 'Введите код выше в поле ниже' }[lang]}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-950/40 border border-emerald-800/50">
+              <svg className="w-5 h-5 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 8.25h3m-3 3h1.5" />
+              </svg>
+              <div>
+                <div className="text-[9px] font-bold uppercase tracking-widest text-emerald-500">{L.otpSentTo}</div>
+                <div className="text-sm font-bold text-emerald-300 font-mono">{sentPhone}</div>
               </div>
             </div>
           )}
@@ -5699,7 +5722,7 @@ const ExhibitionWelcome: React.FC<{ onDismiss: () => void }> = ({ onDismiss }) =
       {/* Official emblems — both institutions */}
       <div className="flex items-end justify-center gap-12 sm:gap-20">
         <div className="flex flex-col items-center gap-3">
-          <img src="/logo-border-police.png" alt="Poliția de Frontieră a Republicii Moldova"
+          <img src={`${import.meta.env.BASE_URL}logo-border-police.png`} alt="Poliția de Frontieră a Republicii Moldova"
             className="h-28 sm:h-36 w-auto object-contain drop-shadow-2xl" />
           <div className="text-center leading-tight">
             <div className="text-sm font-bold text-slate-200">Poliția de Frontieră</div>
@@ -5707,7 +5730,7 @@ const ExhibitionWelcome: React.FC<{ onDismiss: () => void }> = ({ onDismiss }) =
           </div>
         </div>
         <div className="flex flex-col items-center gap-3">
-          <img src="/logo-customs-service.png" alt="Serviciul Vamal al Republicii Moldova"
+          <img src={`${import.meta.env.BASE_URL}logo-customs-service.png`} alt="Serviciul Vamal al Republicii Moldova"
             className="h-28 sm:h-36 w-auto object-contain drop-shadow-2xl" />
           <div className="text-center leading-tight">
             <div className="text-sm font-bold text-blue-300">Serviciul Vamal</div>
@@ -8339,13 +8362,13 @@ const App: React.FC = () => {
           {/* Official institution emblems */}
           <div className="flex items-center gap-3 shrink-0">
             <div className="flex flex-col items-center gap-0.5">
-              <img src="/logo-border-police.png" alt="Poliția de Frontieră"
+              <img src={`${import.meta.env.BASE_URL}logo-border-police.png`} alt="Poliția de Frontieră"
                 className="h-11 w-auto object-contain drop-shadow-lg" />
               <span className="text-[7px] font-bold text-blue-400/70 uppercase tracking-wider leading-none hidden sm:block">Poliția de Frontieră</span>
             </div>
             <div className="w-px h-10 bg-slate-700/50 shrink-0" />
             <div className="flex flex-col items-center gap-0.5">
-              <img src="/logo-customs-service.png" alt="Serviciul Vamal"
+              <img src={`${import.meta.env.BASE_URL}logo-customs-service.png`} alt="Serviciul Vamal"
                 className="h-11 w-auto object-contain drop-shadow-lg" />
               <span className="text-[7px] font-bold text-orange-400/70 uppercase tracking-wider leading-none hidden sm:block">Serviciul Vamal</span>
             </div>
