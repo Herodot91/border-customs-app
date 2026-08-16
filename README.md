@@ -3,7 +3,20 @@
 A real-time operational simulation dashboard for integrated border control.
 Built as a full-stack web application.
 
-**Live demo:** https://herodot91.github.io/border-customs-app/
+---
+
+## Live Demo
+
+**[https://herodot91.github.io/border-customs-app/](https://herodot91.github.io/border-customs-app/)**
+
+> **Login instructions:**
+> 1. Fill in name, surname, badge number, select rank and institution
+> 2. Choose **Phone OTP** as authentication method
+> 3. Enter a Romanian (`+407XXXXXXXX`) or Moldovan (`+373XXXXXXXX`) mobile number
+> 4. Click **Send Code** — a 6-digit code appears on screen in the login panel
+> 5. Type the code into the field and click **Verify**
+>
+> _This is a demo application — no real SMS is sent. The access code is displayed directly on screen._
 
 ---
 
@@ -17,7 +30,7 @@ Built as a full-stack web application.
 
 **Backend**
 - Node.js — runtime environment
-- Express.js — REST API & OTP verification server
+- Express.js — REST API server
 
 **Tooling**
 - Vite — fast bundler and dev server
@@ -45,7 +58,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000
+Open [http://localhost:3000](http://localhost:3000)
 
 ---
 
