@@ -5345,8 +5345,10 @@ const LoginScreen = React.memo(function LoginScreen({ onLogin, lang, onLangChang
   // ── Two-step state ───────────────────────────────────────────────────────────
   type Step = 'form' | 'otp';
   const [step,      setStep]     = useState<Step>('form');
-  const [sentPhone, setSentPhone] = useState('');   // phone displayed in step 2
+  const [sentPhone, setSentPhone] = useState('');
   const [pendingOfficer, setPendingOfficer] = useState<LoggedOfficer | null>(null);
+  const [demoCode,  setDemoCode]  = useState('');
+  const [isDemoMode, setIsDemoMode] = useState(false);
 
   // ── Shared UI state ──────────────────────────────────────────────────────────
   const [error,    setError]   = useState('');
@@ -5385,6 +5387,13 @@ const LoginScreen = React.memo(function LoginScreen({ onLogin, lang, onLangChang
   const normalisePhone = (p: string) => { const s = p.replace(/\s/g,''); return s.startsWith('+') ? s : `+${s}`; };
   const isValidPhone = (p: string) => /^\+407\d{8}$|^\+373\d{8}$/.test(normalisePhone(p));
 
+  const activateDemoMode = (phone: string, officer: LoggedOfficer) => {
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    setDemoCode(code); setIsDemoMode(true);
+    setPendingOfficer(officer); setSentPhone(phone);
+    setCountdown(300); setResendLeft(60); setStep('otp');
+  };
+
   const sendOtp = async () => {
     const name    = nameRef.current?.value.trim()    ?? '';
     const surname = surnameRef.current?.value.trim() ?? '';
@@ -5395,21 +5404,29 @@ const LoginScreen = React.memo(function LoginScreen({ onLogin, lang, onLangChang
       setError({ EN: 'Enter a valid Romanian (+407XXXXXXXX) or Moldovan (+373XXXXXXXX) mobile number.', RO: 'Introduceți un număr mobil român (+407XXXXXXXX) sau moldovean (+373XXXXXXXX) valid.', FR: 'Entrez un numéro mobile roumain (+407XXXXXXXX) ou moldave (+373XXXXXXXX) valide.', RU: 'Введите действительный румынский (+407XXXXXXXX) или молдавский (+373XXXXXXXX) мобильный номер.' }[lang]);
       return;
     }
+    const normPhone = normalisePhone(phone);
+    const officer = { name, surname, badge, institution, rank };
     setLoading(true); setError('');
     try {
-      const res = await fetch('/api/send-otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: normalisePhone(phone) }) });
+      const res = await fetch('/api/send-otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: normPhone }) });
+      const ct = res.headers.get('content-type') ?? '';
+      if (!ct.includes('application/json')) { activateDemoMode(normPhone, officer); return; }
       if (!res.ok) throw new Error((await res.json()).error);
-      setPendingOfficer({ name, surname, badge, institution, rank });
-      setSentPhone(normalisePhone(phone));
+      setIsDemoMode(false); setDemoCode('');
+      setPendingOfficer(officer); setSentPhone(normPhone);
       setCountdown(300); setResendLeft(60); setStep('otp');
-    } catch (err: any) {
-      setError({ EN: `Could not send code — ${err.message ?? 'try again'}.`, RO: `Nu s-a putut trimite codul — ${err.message ?? 'reîncercați'}.`, FR: `Échec d'envoi — ${err.message ?? 'réessayez'}.`, RU: `Не удалось отправить — ${err.message ?? 'повторите попытку'}.` }[lang]);
+    } catch {
+      activateDemoMode(normPhone, officer);
     } finally { setLoading(false); }
   };
 
   const verifyOtp = async () => {
     const code = otpRef.current?.value.trim() ?? '';
     if (code.length !== 6) { setError('Enter the 6-digit code.'); return; }
+    if (isDemoMode) {
+      if (code !== demoCode) { setError({ EN: 'Invalid code. Check the code shown below.', RO: 'Cod invalid. Verificați codul afișat mai jos.', FR: 'Code invalide. Vérifiez le code affiché ci-dessous.', RU: 'Неверный код. Проверьте код ниже.' }[lang]); return; }
+      onLogin(pendingOfficer!); return;
+    }
     setLoading(true); setError('');
     try {
       const res = await fetch('/api/verify-otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: sentPhone, code }) });
@@ -5422,6 +5439,12 @@ const LoginScreen = React.memo(function LoginScreen({ onLogin, lang, onLangChang
 
   const resendOtp = async () => {
     if (resendLeft > 0) return;
+    if (isDemoMode) {
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      setDemoCode(code); setCountdown(300); setResendLeft(60);
+      if (otpRef.current) otpRef.current.value = '';
+      return;
+    }
     setLoading(true); setError('');
     try {
       const res = await fetch('/api/send-otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: sentPhone }) });
@@ -5610,6 +5633,18 @@ const LoginScreen = React.memo(function LoginScreen({ onLogin, lang, onLangChang
               <div className="text-sm font-bold text-emerald-300 font-mono">{sentPhone}</div>
             </div>
           </div>
+          {/* Demo code panel — only shown when no real SMS backend is available */}
+          {isDemoMode && demoCode && (
+            <div className="rounded-xl border border-amber-700/40 bg-amber-950/20 overflow-hidden">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-900/20 border-b border-amber-800/30">
+                <span className="text-[8px] font-bold text-amber-600 uppercase tracking-widest">Demo — Cod afișat pe ecran</span>
+              </div>
+              <div className="p-3 text-center">
+                <div className="font-mono text-3xl font-black tracking-[0.4em] text-amber-300 py-1">{demoCode}</div>
+                <div className="text-[8px] text-slate-600 mt-1">Introduceți codul de mai sus în câmpul de mai jos</div>
+              </div>
+            </div>
+          )}
           {/* Countdown */}
           <div className="flex items-center justify-between text-[10px]">
             <span className="text-slate-500 uppercase tracking-wider">{L.otpExpires}</span>
