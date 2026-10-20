@@ -1,0 +1,110 @@
+# API standards for this repository, checked in CI by .github/workflows/api-lint.yml
+# Base: Spectral's built-in OpenAPI rules. Below: our own house rules.
+extends: ["spectral:oas"]
+
+rules:
+  # The repository has no licence file yet, so the spec does not declare one.
+  info-license: off
+  license-url: off
+
+  op-operation-id-camel-case:
+    description: operationId must be camelCase (sendOtp, getHealth).
+    severity: error
+    given: $.paths[*][*].operationId
+    then:
+      function: pattern
+      functionOptions:
+        match: "^[a-z][a-zA-Z0-9]*$"
+
+  op-summary-required:
+    description: Every operation needs a short summary.
+    severity: error
+    given: $.paths[*][get,put,post,delete,patch]
+    then:
+      field: summary
+      function: truthy
+
+  path-kebab-case:
+    description: Path segments are lowercase and kebab-case; parameters are {camelCase}.
+    severity: error
+    given: $.paths[*]~
+    then:
+      function: pattern
+      functionOptions:
+        match: "^(/([a-z0-9]+(-[a-z0-9]+)*|\\{[a-z][a-zA-Z0-9]*\\}))+$"
+
+  path-no-verbs:
+    description: Prefer resource names over action names in paths (RPC-style paths are kept only for compatibility).
+    severity: warn
+    given: $.paths[*]~
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "/(send|get|create|update|delete|verify|check)-"
+
+  error-responses-same-shape:
+    description: 4xx and 5xx bodies must look the same - an object with a required string "error" field (the shared Error schema).
+    severity: error
+    given: $.paths[*][*].responses[?(@property >= 400)].content[*].schema
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [required, properties]
+          properties:
+            required:
+              type: array
+              contains:
+                const: error
+            properties:
+              type: object
+              required: [error]
+              properties:
+                error:
+                  type: object
+                  required: [type]
+                  properties:
+                    type:
+                      const: string
+
+  write-operations-need-400:
+    description: POST, PUT and PATCH take a body, so they must document a 400 response.
+    severity: error
+    given: $.paths[*][post,put,patch].responses
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: ["400"]
+
+  media-types-have-examples:
+    description: Every request and response body needs an example (example or examples).
+    severity: warn
+    given:
+      - $.paths[*][*].requestBody.content[*]
+      - $.paths[*][*].responses[*].content[*]
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          anyOf:
+            - required: [example]
+            - required: [examples]
+
+  schema-properties-described:
+    description: Every schema property needs a description.
+    severity: warn
+    given: $.components.schemas[*].properties[*]
+    then:
+      field: description
+      function: truthy
+
+  tags-have-descriptions:
+    description: Every declared tag needs a description.
+    severity: warn
+    given: $.tags[*]
+    then:
+      field: description
+      function: truthy
