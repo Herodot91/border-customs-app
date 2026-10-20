@@ -1,0 +1,194 @@
+openapi: 3.0.3
+info:
+  title: OTP Service API
+  version: 1.0.0
+  description: |
+    One-time-password (OTP) service of the Border & Customs Joint Operational Console.
+    A caller asks for a 6-digit code to be sent by SMS to a phone number, then verifies it.
+
+    **Reference implementation:** `server.js` (Express, in-memory store, Twilio SMS).
+    This document describes that contract.
+
+    **Known drift (documented, not yet fixed):** the serverless copy in `api/*.js` differs
+    from the reference in four places:
+
+    | Area | `server.js` (reference) | `api/*.js` (serverless) |
+    |---|---|---|
+    | Success body | `{ "success": true }` | `{ "ok": true }` |
+    | Wrong HTTP method | not routed (404) | `405` with an empty body |
+    | Resend rate limit (`429`) | yes, one send per number per 60 s | no |
+    | Error text | specific, per case | `Phone required`, `Invalid or expired code` |
+
+    **Design note:** `send-otp` and `verify-otp` are action names (RPC style). They are kept
+    so existing callers keep working. A resource-style design would be
+    `POST /otp-requests` and `POST /otp-verifications`. The ruleset flags this as a warning.
+  contact:
+    name: Constantin Plămădeală
+    url: https://github.com/Herodot91
+servers:
+  - url: http://localhost:3001
+    description: Local development (port set by the OTP_PORT variable; the Vite dev server proxies /api to it)
+tags:
+  - name: otp
+    description: Send and verify one-time passwords
+  - name: health
+    description: Service status
+paths:
+  /api/send-otp:
+    post:
+      tags: [otp]
+      operationId: sendOtp
+      summary: Send a one-time code by SMS
+      description: |
+        Generates a 6-digit code, valid for 5 minutes, and sends it to the phone number.
+        Only one code can be sent per number every 60 seconds.
+        Spaces in the number are removed and a missing leading `+` is added.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendOtpRequest'
+            example:
+              phone: '+40700000000'
+      responses:
+        '200':
+          description: The code was sent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                success: true
+        '400':
+          description: The phone number is missing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Phone number is required.
+        '429':
+          description: A code was already sent to this number in the last 60 seconds.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Please wait 42s before requesting another code.
+        '500':
+          description: The SMS provider (Twilio) rejected the message or could not be reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: 'SMS delivery failed: <provider message>'
+  /api/verify-otp:
+    post:
+      tags: [otp]
+      operationId: verifyOtp
+      summary: Verify a one-time code
+      description: |
+        Checks the code against the one sent to the phone number.
+        A code can be used once, expires after 5 minutes, and allows 3 attempts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyOtpRequest'
+            example:
+              phone: '+40700000000'
+              code: '123456'
+      responses:
+        '200':
+          description: The code is correct. It cannot be used again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                success: true
+        '400':
+          description: |
+            The request is incomplete, no code was sent to this number, the code expired,
+            there were too many attempts, or the code is wrong.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                missingFields:
+                  summary: Phone or code missing
+                  value:
+                    error: Phone and code are required.
+                wrongCode:
+                  summary: Wrong code
+                  value:
+                    error: Invalid code. 2 attempts remaining.
+                expired:
+                  summary: Code expired
+                  value:
+                    error: Code expired. Request a new one.
+  /api/health:
+    get:
+      tags: [health]
+      operationId: getHealth
+      summary: Check that the service is running
+      description: Returns `ok` when the server is up. It does not contact the SMS provider.
+      responses:
+        '200':
+          description: The service is running.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+              example:
+                status: ok
+components:
+  schemas:
+    SendOtpRequest:
+      type: object
+      required: [phone]
+      properties:
+        phone:
+          type: string
+          description: Mobile number. International format is expected (E.164).
+          example: '+40700000000'
+    VerifyOtpRequest:
+      type: object
+      required: [phone, code]
+      properties:
+        phone:
+          type: string
+          description: The same number the code was sent to.
+          example: '+40700000000'
+        code:
+          type: string
+          description: The 6-digit code from the SMS.
+          pattern: '^[0-9]{6}$'
+          example: '123456'
+    SuccessResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          description: Always true when the call succeeded.
+          example: true
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          description: Service status.
+          enum: [ok]
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Human-readable reason for the failure.
